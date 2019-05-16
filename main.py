@@ -1,11 +1,13 @@
-from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
 from config import DevConfig
 import datetime
+from flask import Flask
+from flask_migrate import Migrate
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 app.config.from_object(DevConfig)
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 
 
 @app.route('/')
