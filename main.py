@@ -1,18 +1,22 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from config import DevConfig
+import datetime
 
 app = Flask(__name__)
 app.config.from_object(DevConfig)
 db = SQLAlchemy(app)
+
 
 @app.route('/')
 def home():
     username = User.query.first().username
     return '<h1>Hello {}</h1>'.format(username)
 
+
 if __name__ == '__main__':
     app.run()
+
 
 @db.event.listens_for(db.engine, 'connect')
 def set_sqlite_pragma(dbapi_connection, connection_record):
@@ -20,26 +24,30 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor.execute('PRAGMA foreign_keys=ON')
     cursor.close()
 
-tags = db.Table('post_tags',
+
+tags = db.Table(
+    'post_tags',
     db.Column('post_id', db.Integer, db.ForeignKey('post.id')),
     db.Column('tag_id', db.Integer, db.ForeignKey('tag.id'))
 )
 
+
 class Comment(db.Model):
     id = db.Column(db.Integer(), primary_key=True)
-    name = db.Column(db.String(255))
+    name = db.Column(db.String(255), nullable=False)
     text = db.Column(db.Text())
-    date = db.Column(db.DateTime())
+    date = db.Column(db.DateTime(), default=datetime.datetime.now)
     post_id = db.Column(db.Integer(), db.ForeignKey('post.id'))
 
     def __repr__(self):
         return "<Comment '{}'>".format(self.text[:15])
 
+
 class Post(db.Model):
     id = db.Column(db.Integer(), primary_key=True)
-    title = db.Column(db.String(255))
+    title = db.Column(db.String(255), nullable=False)
     text = db.Column(db.Text())
-    publish_date = db.Column(db.DateTime())
+    publish_date = db.Column(db.DateTime(), default=datetime.datetime.now)
     comments = db.relationship(
         'Comment',
         backref='post',
@@ -58,9 +66,10 @@ class Post(db.Model):
     def __repr__(self):
         return "<Post '{}'>".format(self.title)
 
+
 class Tag(db.Model):
     id = db.Column(db.Integer(), primary_key=True)
-    title = db.Column(db.String(255))
+    title = db.Column(db.String(255), nullable=False, unique=True)
 
     def __init__(self, title):
         self.title = title
@@ -68,9 +77,11 @@ class Tag(db.Model):
     def __repr__(self):
         return "<Tag '{}'>".format(self.title)
 
+
 class User(db.Model):
     id = db.Column(db.Integer(), primary_key=True)
-    username = db.Column(db.String(255))
+    username = db.Column(
+        db.String(255), nullable=False, index=True, unique=True)
     password = db.Column(db.String(255))
     posts = db.relationship(
         'Post',
