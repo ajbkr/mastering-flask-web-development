@@ -1,0 +1,21 @@
+{% macro input(name, label, value='', type='text') %}
+  <div class="form-group">
+    <label for="{{ name }}">{{ label }}</label>
+    <input type="{{ type }}" name="{{ name }}"
+     value="{{ value | escape }}" class="form-control">
+  </div>
+{% endmacro %}
+
+<h1>Hello {{ user.username }}</h1>
+<p>
+  The string "banana" contains {{ "banana" | count_substring("na") }} instance(s) of "na".
+</p>
+<ul>
+{% for post in posts %}
+  <li>
+    {{ loop.index }}. {{ post.title | title }}
+  </li>
+{% endfor %}
+</ul>
+{{ input('name', 'Name') }}
+<a href="{{ url_for('home') }}">Home</a>

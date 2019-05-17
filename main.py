@@ -1,6 +1,6 @@
 from config import DevConfig
 import datetime
-from flask import Flask
+from flask import Flask, render_template
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 
@@ -10,10 +10,21 @@ db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
 
+@app.template_filter()
+def count_substring(string, sub_string):
+    return string.count(sub_string)
+
+
 @app.route('/')
 def home():
-    username = User.query.first().username
-    return '<h1>Hello {}</h1>'.format(username)
+    posts = Post.query.all()
+    user = User.query.first()
+
+    return render_template(
+        'main.html',
+        posts=posts,
+        user=user
+    )
 
 
 if __name__ == '__main__':
