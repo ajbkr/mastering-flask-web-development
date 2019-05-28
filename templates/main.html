@@ -13,9 +13,9 @@
 <ul>
 {% for post in posts %}
   <li>
-    {{ loop.index }}. {{ post.title | title }}
+    {{ post.title }}
   </li>
 {% endfor %}
 </ul>
 {{ input('name', 'Name') }}
-<a href="{{ url_for('home') }}">Home</a>
+<a href="{{ url_for('home', page=1) }}">Home</a>
