@@ -11,7 +11,7 @@
     <div class="col-lg-6">
       <p>
         Written By
-        <a href="{{ url_for('posts_by_user', username=post.user.username) }}">{{ post.user.username }}</a>
+        <a href="{{ url_for('blog.posts_by_user', username=post.user.username) }}">{{ post.user.username }}</a>
         on {{ post.publish_date }}
       </p>
     </div>
@@ -19,7 +19,7 @@
       <p class="text-right">
         Tags:
         {% for tag in tags %}
-          <a href="{{ url_for('posts_by_tag', tag_name=tag.title) }}">{{ tag.title }}</a>{% if not loop.last %},{% endif %}
+          <a href="{{ url_for('blog.posts_by_tag', tag_name=tag.title) }}">{{ tag.title }}</a>{% if not loop.last %},{% endif %}
         {% endfor %}
       </p>
     </div>
@@ -38,7 +38,7 @@
   </div>
   <div class="row">
     <div class="col">
-      <form method="POST" action="{{ url_for('post', post_id=post.id) }}">
+      <form method="POST" action="{{ url_for('blog.post', post_id=post.id) }}">
         {{ form.hidden_tag() }}
         <div class="form-group">
           {{ form.name.label }}

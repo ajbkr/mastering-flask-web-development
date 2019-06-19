@@ -1,6 +1,9 @@
 import datetime
+import random
 
-from flask import Flask, render_template, flash, redirect, url_for
+from flask import Blueprint, Flask, flash, g, redirect, render_template, \
+    session, url_for
+from flask.views import View
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import FlaskForm as Form
@@ -16,111 +19,12 @@ db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
 
-@app.template_filter()
-def count_substring(string, sub_string):
-    return string.count(sub_string)
-
-
-def sidebar_data():
-    recent = Post.query.order_by(
-        Post.publish_date.desc()
-    ).limit(5).all()
-    top_tags = db.session.query(
-        Tag, func.count(tags.c.post_id).label('total')
-    ).join(
-        tags
-    ).group_by(Tag).order_by(text('total DESC')).limit(5).all()
-
-    return recent, top_tags
-
-
-@app.route('/')
-@app.route('/<int:page>')
-def home(page=1):
-    posts = Post.query.order_by(Post.publish_date.desc()).paginate(
-        page,
-        app.config.get('POSTS_PER_PAGE', 10),
-        False
-    )
-    recent, top_tags = sidebar_data()
-    user = User.query.first()
-
-    return render_template(
-        # 'main.html',
-        'home.html',
-        posts=posts,
-        recent=recent,
-        top_tags=top_tags,
-        user=user
-    )
-
-
-@app.route('/post/<int:post_id>', methods=('GET', 'POST'))
-def post(post_id):
-    form = CommentForm()
-    if form.validate_on_submit():
-        new_comment = Comment()
-        new_comment.name = form.name.data
-        new_comment.text = form.text.data
-        new_comment.post_id = post_id
-        try:
-            db.session.add(new_comment)
-            db.session.commit()
-        except Exception as e:
-            flash('Error adding your comment: %s' % str(e), 'error')
-            db.session.rollback()
-        else:
-            flash('Comment added', 'info')
-        return redirect(url_for('post', post_id=post_id))
-
-    post = Post.query.get_or_404(post_id)
-    tags = post.tags
-    comments = post.comments.order_by(Comment.date.desc()).all()
-    recent, top_tags = sidebar_data()
-
-    return render_template(
-        'post.html',
-        comments=comments,
-        form=form,
-        post=post,
-        recent=recent,
-        tags=tags,
-        top_tags=top_tags
-    )
-
-
-@app.route('/posts_by_tag/<string:tag_name>')
-def posts_by_tag(tag_name):
-    tag = Tag.query.filter_by(title=tag_name).first_or_404()
-    posts = tag.posts.order_by(Post.publish_date.desc()).all()
-    recent, top_tags = sidebar_data()
-
-    return render_template(
-        'tag.html',
-        posts=posts,
-        recent=recent,
-        tag=tag,
-        top_tags=top_tags
-    )
-
-
-@app.route('/posts_by_user/<string:username>')
-def posts_by_user(username):
-    user = User.query.filter_by(username=username).first_or_404()
-    posts = user.posts.order_by(Post.publish_date.desc()).all()
-    recent, top_tags = sidebar_data()
-
-    return render_template(
-        'user.html',
-        posts=posts,
-        recent=recent,
-        top_tags=top_tags,
-        user=user
-    )
-
-
-if __name__ == '__main__':
-    app.run()
+blog_blueprint = Blueprint(
+    'blog',
+    __name__,
+    template_folder='templates/blog',
+    url_prefix='/blog'
+)
 
 
 # @db.event.listens_for(db.engine, 'connect')
@@ -207,3 +111,186 @@ class CommentForm(Form):
         validators=[DataRequired(), Length(max=255)]
     )
     text = TextAreaField(u'Comment', validators=[DataRequired()])
+
+
+@app.template_filter()
+def count_substring(string, sub_string):
+    return string.count(sub_string)
+
+
+def sidebar_data():
+    recent = Post.query.order_by(
+        Post.publish_date.desc()
+    ).limit(5).all()
+    top_tags = db.session.query(
+        Tag, func.count(tags.c.post_id).label('total')
+    ).join(
+        tags
+    ).group_by(Tag).order_by(text('total DESC')).limit(5).all()
+
+    return recent, top_tags
+
+
+@app.before_request
+def before_request():
+    session['page_loads'] = session.get('page_loads', 0) + 1
+    g.random_key = random.randrange(1, 10)
+
+
+@app.errorhandler(404)
+def page_not_found(error):
+    return render_template('404.html'), 404
+
+
+# class GenericView(View):
+#     methods = ['GET', 'POST']
+#
+#     def __init__(self, template):
+#         self.template = template
+#         super(GenericView, self).__init__()
+#
+#     def dispatch_request(self):
+#         if request.method == 'GET':
+#             return render_template(self.template)
+#         elif request.method == 'POST':
+#             # ...
+#             False
+#
+#
+# app.add_url_rule(
+#     '/', view_func=GenericView.as_view(
+#         'home', template='home.html'
+#     )
+# )
+
+
+class GenericListView(View):
+    def __init__(self, model, list_template='generic_list.html'):
+        self.model = model
+        self.list_template = list_template
+        self.columns = self.model.__mapper__.columns.keys()
+        # Call super python3 style
+        super(GenericListView, self).__init__()
+
+    def render_template(self, context):
+        return render_template(self.list_template, **context)
+
+    def get_objects(self):
+        return self.model.query.all()
+
+    def dispatch_request(self):
+        context = {'objects': self.get_objects(),
+                   'columns': self.columns}
+        return self.render_template(context)
+
+
+app.add_url_rule(
+    '/generic_posts', view_func=GenericListView.as_view(
+        'generic_posts', model=Post)
+)
+
+app.add_url_rule(
+    '/generic_users', view_func=GenericListView.as_view(
+        'generic_users', model=User)
+)
+
+app.add_url_rule(
+    '/generic_comments', view_func=GenericListView.as_view(
+        'generic_comments', model=Comment)
+)
+
+
+@app.route('/')
+def index():
+    return redirect(url_for('blog.home'))
+
+
+@blog_blueprint.route('/')
+@blog_blueprint.route('/<int:page>')
+def home(page=1):
+    posts = Post.query.order_by(Post.publish_date.desc()).paginate(
+        page,
+        app.config.get('POSTS_PER_PAGE', 10),
+        False
+    )
+    recent, top_tags = sidebar_data()
+    user = User.query.first()
+
+    return render_template(
+        # 'main.html',
+        'home.html',
+        posts=posts,
+        recent=recent,
+        top_tags=top_tags,
+        user=user
+    )
+
+
+@blog_blueprint.route('/post/<int:post_id>', methods=('GET', 'POST'))
+def post(post_id):
+    form = CommentForm()
+    if form.validate_on_submit():
+        new_comment = Comment()
+        new_comment.name = form.name.data
+        new_comment.text = form.text.data
+        new_comment.post_id = post_id
+        try:
+            db.session.add(new_comment)
+            db.session.commit()
+        except Exception as e:
+            flash('Error adding your comment: %s' % str(e), 'error')
+            db.session.rollback()
+        else:
+            flash('Comment added', 'info')
+        return redirect(url_for('post', post_id=post_id))
+
+    post = Post.query.get_or_404(post_id)
+    tags = post.tags
+    comments = post.comments.order_by(Comment.date.desc()).all()
+    recent, top_tags = sidebar_data()
+
+    return render_template(
+        'post.html',
+        comments=comments,
+        form=form,
+        post=post,
+        recent=recent,
+        tags=tags,
+        top_tags=top_tags
+    )
+
+
+@blog_blueprint.route('/posts_by_tag/<string:tag_name>')
+def posts_by_tag(tag_name):
+    tag = Tag.query.filter_by(title=tag_name).first_or_404()
+    posts = tag.posts.order_by(Post.publish_date.desc()).all()
+    recent, top_tags = sidebar_data()
+
+    return render_template(
+        'tag.html',
+        posts=posts,
+        recent=recent,
+        tag=tag,
+        top_tags=top_tags
+    )
+
+
+@blog_blueprint.route('/posts_by_user/<string:username>')
+def posts_by_user(username):
+    user = User.query.filter_by(username=username).first_or_404()
+    posts = user.posts.order_by(Post.publish_date.desc()).all()
+    recent, top_tags = sidebar_data()
+
+    return render_template(
+        'user.html',
+        posts=posts,
+        recent=recent,
+        top_tags=top_tags,
+        user=user
+    )
+
+
+app.register_blueprint(blog_blueprint)
+
+if __name__ == '__main__':
+    app.run()
